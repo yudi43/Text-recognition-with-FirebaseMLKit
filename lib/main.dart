@@ -1,65 +1,134 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(MyApp());
-}
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_ml_vision/firebase_ml_vision.dart';
+
+void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
+      debugShowCheckedModeBanner: false,
+      home: MyHomePage(),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
-
-  final String title;
-
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  File pickedImage;
+  var text = '';
 
-  void _incrementCounter() {
+  bool imageLoaded = false;
+
+  Future pickImage() async {
+    var awaitImage = await ImagePicker.pickImage(source: ImageSource.camera);
+
     setState(() {
-      _counter++;
+      pickedImage = awaitImage;
+      imageLoaded = true;
     });
+
+    FirebaseVisionImage visionImage = FirebaseVisionImage.fromFile(pickedImage);
+    TextRecognizer textRecognizer = FirebaseVision.instance.textRecognizer();
+    VisionText visionText = await textRecognizer.processImage(visionImage);
+
+    for (TextBlock block in visionText.blocks) {
+      for (TextLine line in block.lines) {
+        for (TextElement word in line.elements) {
+          setState(() {
+            text = text + word.text + ' ';
+          });
+        }
+        text = text + ' ';
+      }
+    }
+    textRecognizer.close();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'You have pushed the button this many times:',
+      body: Column(
+        children: <Widget>[
+          SizedBox(height: 100.0),
+          imageLoaded
+              ? Center(
+                  child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: const [
+                      BoxShadow(blurRadius: 20),
+                    ],
+                  ),
+                  margin: EdgeInsets.fromLTRB(0, 0, 0, 8),
+                  height: 250,
+                  child: Image.file(
+                    pickedImage,
+                    fit: BoxFit.cover,
+                  ),
+                ))
+              : Container(),
+          SizedBox(height: 10.0),
+          Center(
+            child: FlatButton.icon(
+              icon: Icon(
+                Icons.camera,
+                size: 50,
+                color: Colors.black,
+              ),
+              label: Text(''),
+              textColor: Theme.of(context).primaryColor,
+              onPressed: () async {
+                pickImage();
+              },
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: Icon(Icons.add),
+          ),
+          SizedBox(height: 10.0),
+          SizedBox(height: 10.0),
+          text == ''
+              ? Text('Click a picture to read the text.')
+              : Container(
+                  height: 200,
+                  child: Card(
+                    child: Column(
+                      children: <Widget>[
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(
+                            'Recognized text was:',
+                            style: TextStyle(
+                                fontSize: 20,
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Expanded(
+                          child: Container(
+                            padding: EdgeInsets.all(20),
+                            color: Colors.grey[200],
+                            child: SingleChildScrollView(
+                              child: Padding(
+                                padding: const EdgeInsets.all(15.0),
+                                child: Text(
+                                  text,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+        ],
       ),
     );
   }
